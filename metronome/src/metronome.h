@@ -8,6 +8,7 @@
 #ifndef METRONOME_H_
 #define METRONOME_H_
 
+//Pulse codes
 #define METRO_PULSE_CODE _PULSE_CODE_MINAVAIL
 #define PAUSE_PULSE_CODE (_PULSE_CODE_MINAVAIL +1)
 #define START_PULSE_CODE (_PULSE_CODE_MINAVAIL +2)
@@ -18,6 +19,26 @@
 #define STARTED 0
 #define STOPPED 1
 #define PAUSED 2
+
+//Setting up devices
+#define METRONOME 0
+#define HELP 1
+#define NumDevices 2
+
+char *devNames[NumDevices] = {
+	"/dev/local/metronome",
+	"/dev/local/metronome-help"
+};
+
+typedef struct metocb_s {
+	iofunc_ocb_t ocb;
+	char* buffer;
+} metocb_t;
+
+typedef struct ioattr_t {
+	iofunc_attr_t attr;
+	int device;
+} ioattr_t;
 
 typedef union {
 	struct _pulse pulse;
