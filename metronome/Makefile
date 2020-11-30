@@ -57,7 +57,7 @@ $(OUTPUT_DIR)/%.o: %.c
 
 #Linking rule
 $(TARGET):$(OBJS)
-	$(LD) -o $(TARGET) $(LDFLAGS_all) $(LDFLAGS) $(OBJS) $(LIBS_all) $(LIBS)
+	$(LD) -o $(TARGET) -lm $(LDFLAGS_all) $(LDFLAGS) $(OBJS) $(LIBS_all) $(LIBS)
 
 #Rules section for default compilation and linking
 all: $(TARGET)

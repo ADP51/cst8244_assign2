@@ -9,7 +9,7 @@
 #include <math.h>
 #include <sys/iofunc.h>
 #include <sys/dispatch.h>
-#include "./metronome.h"
+#include "metronome.h"
 
 metronome_t input_obj;
 name_attach_t *attach;
@@ -32,8 +32,7 @@ int main(int argc, char *argv[]) {
 	input_obj.tstop = atoi(argv[2]);
 	input_obj.tsbot = atoi(argv[3]);
 
-	iofunc_funcs_t metocb_funcs = {
-	_IOFUNC_NFUNCS, metocb_calloc, metocb_free };
+	iofunc_funcs_t metocb_funcs = {_IOFUNC_NFUNCS, metocb_calloc, metocb_free };
 
 	iofunc_mount_t metocb_mount = { 0, 0, 0, 0, &metocb_funcs };
 
@@ -41,8 +40,8 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "%s:  Unable to allocate dispatch context.\n", argv[0]);
 		return (EXIT_FAILURE);
 	}
-	iofunc_func_init(_RESMGR_CONNECT_NFUNCS, &connect_funcs, _RESMGR_IO_NFUNCS,
-			&io_funcs);
+
+	iofunc_func_init(_RESMGR_CONNECT_NFUNCS, &connect_funcs, _RESMGR_IO_NFUNCS, &io_funcs);
 	connect_funcs.open = io_open;
 	io_funcs.read = io_read;
 	io_funcs.write = io_write;
@@ -164,19 +163,19 @@ void metronome_thread(void* input_obj) {
 
 int table_lookup(metronome_t* input_obj) {
 	for (int i = 0; i < 8; i++) {
-		if (t[i].tstop == input_obj.tstop && t[i].tsbot == input_obj->tsbot) {
+		if (t[i].tstop == input_obj->tstop && t[i].tsbot == input_obj->tsbot) {
 			return i;
 		}
 	}
 
-	return ERROR; // not found in table
+	return ERROR;
 }
 
 void set_timer(metronome_t* input) {
-	input->timer.bps = (double) 60 / input_obj.bpm;
-	input->timer.bpmeasure = input_obj.tstop * input->timer.bps;
+	input->timer.length = (double) 60 / input_obj.bpm;
+	input->timer.bpmeasure = input_obj.tstop * input->timer.length;
 	input->timer.interval = input->timer.bpmeasure / input_obj.tsbot;
-	input->timer.nano = floor(input->timer.interval) * 1e+9;
+	input->timer.nano = floor(input->timer.interval * 1e+9);
 }
 
 void start_timer(struct itimerspec *itime, timer_t timer_id,
@@ -197,14 +196,30 @@ void stop_timer(struct itimerspec *itime, timer_t timer_id) {
 	timer_settime(timer_id, 0, itime, NULL);
 }
 
-int io_read(resmgr_context_t *ctp, io_read_t *msg, RESMGR_OCB_T *ocb) {
-	static char data[] = "hello";
+int io_read(resmgr_context_t *ctp, io_read_t *msg, metocb_t *metocb) {
+	char data[255];
 	int nb;
+	int i = table_lookup(&input_obj);
+
+//	sprintf(data,
+//			"Metronome Resource Manager (ResMgr)\n"
+//			"\nUsage: metronome <bpm> <ts-top> <ts-bottom>\n\nAPI:\n"
+//			"pause[1-9]                     -pause the metronome for 1-9 seconds\n"
+//			"quit                           -quit the metronome\n"
+//			"set <bpm> <ts-top> <ts-bottom> -set the metronome to <bpm> ts-top/ts-bottom\n"
+//			"start                          -start the metronome from stopped state\n"
+//			"stop                           -stop the metronome; use 'start' to resume\n"
+//	);
+
+	sprintf(data,
+			"[metronome: %d beats/min, time signature: %d/%d, sec-per-interval: %.2f, nanoSecs: %d]\n",
+			input_obj.bpm, t[i].tstop, t[i].tsbot, input_obj.timer.interval, input_obj.timer.nano
+	);
 
 	nb = strlen(data);
 
 	//test to see if we have already sent the whole message.
-	if (ocb->offset == nb)
+	if (metocb->ocb.offset == nb)
 		return 0;
 
 	//We will return which ever is smaller the size of our data or the size of the buffer
@@ -217,11 +232,11 @@ int io_read(resmgr_context_t *ctp, io_read_t *msg, RESMGR_OCB_T *ocb) {
 	SETIOV(ctp->iov, data, nb);
 
 	//update offset into our data used to determine start position for next read.
-	ocb->offset += nb;
+	metocb->ocb.offset += nb;
 
 	//If we are going to send any bytes update the access time for this resource.
 	if (nb > 0)
-		ocb->attr->flags |= IOFUNC_ATTR_ATIME;
+		metocb->ocb.attr->flags |= IOFUNC_ATTR_ATIME;
 
 	return (_RESMGR_NPARTS(1));
 }
@@ -281,6 +296,11 @@ int io_write(resmgr_context_t *ctp, io_write_t *msg, RESMGR_OCB_T *ocb) {
 
 int io_open(resmgr_context_t *ctp, io_open_t *msg, RESMGR_HANDLE_T *handle,
 		void *extra) {
+	if((srvr_coid = name_open("metronome", 0)) == ERROR){
+		perror("Unable to open namespace.");
+		return EXIT_FAILURE;
+	}
+
 	return (iofunc_open_default(ctp, msg, handle, extra));
 }
 

@@ -21,6 +21,7 @@
 #define PAUSED 2
 
 //Setting up devices
+#define ERROR -1
 #define METRONOME 0
 #define HELP 1
 #define NumDevices 2
@@ -30,15 +31,16 @@ char *devnames[NumDevices] = {
 	"/dev/local/metronome-help"
 };
 
-typedef struct metocb_s {
-	iofunc_ocb_t ocb;
-	char* buffer;
-} metocb_t;
-
 typedef struct ioattr_t {
 	iofunc_attr_t attr;
 	int device;
 } ioattr_t;
+
+typedef struct metocb_s {
+	iofunc_ocb_t ocb;
+	char buffer[255];
+} metocb_t;
+
 
 typedef union {
 	struct _pulse pulse;
@@ -46,10 +48,10 @@ typedef union {
 } my_message_t;
 
 struct Timer_attr {
-	double bps;
+	double length;
 	double bpmeasure;
 	double interval;
-	double nano;
+	int nano;
 } typedef timer_attr;
 
 struct metronome_t {
@@ -78,7 +80,7 @@ void set_timer(metronome_t * input);
 void start_timer(struct itimerspec *itime, timer_t timer_id,
 		metronome_t* input_obj);
 void stop_timer(struct itimerspec *itime, timer_t timer_id);
-int io_read(resmgr_context_t *ctp, io_read_t *msg, RESMGR_OCB_T *ocb);
+int io_read(resmgr_context_t *ctp, io_read_t *msg, metocb_t *ocb);
 int io_write(resmgr_context_t *ctp, io_write_t *msg, RESMGR_OCB_T *ocb);
 int io_open(resmgr_context_t *ctp, io_open_t *msg, RESMGR_HANDLE_T *handle,
 		void *extra);
