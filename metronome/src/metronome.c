@@ -84,13 +84,13 @@ void *metronome_thread() {
 
 	table_idx = table_lookup(&input_obj);
 
-	if(table_idx > 0){ // check if measure exists in table
-		set_timer(&input_obj);
-		start_timer(&itime, timer_id, &input_obj);
-	} else { // if not, set status to stopped
+	if(table_idx == -1){ // check if measure exists in table
 		perror("\nStopped\nPlease set a valid measure.");
 		stop_timer(&itime, timer_id);
 		status = STOPPED;
+	} else { // if not, set status to stopped
+		set_timer(&input_obj);
+		start_timer(&itime, timer_id, &input_obj);
 	}
 
 	tblp = t[table_idx].pattern;
