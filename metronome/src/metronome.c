@@ -85,10 +85,10 @@ void *metronome_thread() {
 	table_idx = table_lookup(&input_obj);
 
 	if(table_idx == -1){ // check if measure exists in table
-		perror("\nStopped\nPlease set a valid measure.");
+		perror("\nStopped\nPlease set a valid measure."); // if not, set status to stopped
 		stop_timer(&itime, timer_id);
 		status = STOPPED;
-	} else { // if not, set status to stopped
+	} else { // if exists, set and start timer
 		set_timer(&input_obj);
 		start_timer(&itime, timer_id, &input_obj);
 	}
