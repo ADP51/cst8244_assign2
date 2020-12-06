@@ -27,6 +27,7 @@ struct metocb;
 #include <sys/types.h>
 #include <sys/netmgr.h>
 #include <sys/neutrino.h>
+#include <string.h>
 
 #define MET_PULSE   _PULSE_CODE_MINAVAIL
 #define START_PULSE _PULSE_CODE_MINAVAIL + 1
