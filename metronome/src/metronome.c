@@ -1,3 +1,21 @@
+/******************
+ * Filename: metronome.c
+ * Date: Nov 27, 2020
+ * Course: CST8244 Real-Time Programming
+ * Author: Andrew Palmer, Karim Tahan
+ * Functions:
+ void *metronome_thread();
+ int table_lookup(metronome_t *input_obj);
+ void set_timer(metronome_t *input_obj);
+ void start_timer(struct itimerspec * itime, timer_t timer_id, metronome_t *input_obj);
+ void stop_timer(struct itimerspec * itime, timer_t timer_id);
+ int io_read(resmgr_context_t *ctp, io_read_t *msg, metocb_t *ocb);
+ int io_write(resmgr_context_t *ctp, io_write_t *msg, metocb_t *ocb);
+ int io_open(resmgr_context_t *ctp, io_open_t *msg, RESMGR_HANDLE_T *handle,void *extra);
+ metocb_t *metocb_calloc(resmgr_context_t *ctp, IOFUNC_ATTR_T *mattr);
+ void metocb_free(metocb_t *mocb);
+ *
+ *****************/
 #include "metronome.h"
 
 metronome_t input_obj;
@@ -22,7 +40,7 @@ int main(int argc, char *argv[]) {
 	input_obj.tstop = atoi(argv[2]);
 	input_obj.tsbot = atoi(argv[3]);
 
-	iofunc_funcs_t metocb_funcs = {_IOFUNC_NFUNCS, metocb_calloc, metocb_free };
+	iofunc_funcs_t metocb_funcs = { _IOFUNC_NFUNCS, metocb_calloc, metocb_free };
 
 	iofunc_mount_t metocb_mount = { 0, 0, 0, 0, &metocb_funcs };
 
@@ -31,7 +49,8 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	iofunc_func_init(_RESMGR_CONNECT_NFUNCS, &connect_funcs, _RESMGR_IO_NFUNCS, &io_funcs);
+	iofunc_func_init(_RESMGR_CONNECT_NFUNCS, &connect_funcs, _RESMGR_IO_NFUNCS,
+			&io_funcs);
 	connect_funcs.open = io_open;
 	io_funcs.read = io_read;
 	io_funcs.write = io_write;
@@ -40,7 +59,8 @@ int main(int argc, char *argv[]) {
 		iofunc_attr_init(&ioattrs[i].attr, S_IFCHR | 0666, NULL, NULL);
 		ioattrs[i].device = i;
 		ioattrs[i].attr.mount = &metocb_mount;
-		resmgr_attach(dpp, NULL, devnames[i], _FTYPE_ANY, 0, &connect_funcs, &io_funcs, &ioattrs[i]);
+		resmgr_attach(dpp, NULL, devnames[i], _FTYPE_ANY, 0, &connect_funcs,
+				&io_funcs, &ioattrs[i]);
 	}
 
 	ctp = dispatch_context_alloc(dpp);
@@ -49,7 +69,7 @@ int main(int argc, char *argv[]) {
 	pthread_attr_init(&thread_attr);
 	pthread_create(NULL, &thread_attr, &metronome_thread, &input_obj);
 
-	while(1) {
+	while (1) {
 		ctp = dispatch_block(ctp);
 		dispatch_handler(ctp);
 	}
@@ -76,7 +96,8 @@ void *metronome_thread() {
 	}
 
 	event.sigev_notify = SIGEV_PULSE;
-	event.sigev_coid = ConnectAttach(ND_LOCAL_NODE, 0, attach->chid, _NTO_SIDE_CHANNEL, 0);
+	event.sigev_coid = ConnectAttach(ND_LOCAL_NODE, 0, attach->chid,
+			_NTO_SIDE_CHANNEL, 0);
 	event.sigev_priority = SIGEV_PULSE_PRIO_INHERIT;
 	event.sigev_code = MET_PULSE;
 
@@ -84,7 +105,7 @@ void *metronome_thread() {
 
 	table_idx = table_lookup(&input_obj);
 
-	if(table_idx == -1){ // check if measure exists in table
+	if (table_idx == -1) { // check if measure exists in table
 		perror("\nStopped\nPlease set a valid measure."); // if not, set status to stopped
 		stop_timer(&itime, timer_id);
 		status = STOPPED;
@@ -98,7 +119,7 @@ void *metronome_thread() {
 	for (;;) {
 		if ((rcvid = MsgReceive(attach->chid, &msg, sizeof(msg), NULL)) == -1) {
 			perror("Error receiving message.");
-			return (int*)EXIT_FAILURE;
+			return (int*) EXIT_FAILURE;
 		}
 
 		if (rcvid == 0) {
@@ -122,7 +143,7 @@ void *metronome_thread() {
 				}
 				break;
 			case STOP_PULSE:
-				if (status == STARTED || status == PAUSED){
+				if (status == STARTED || status == PAUSED) {
 					stop_timer(&itime, timer_id);
 					status = STOPPED;
 				}
@@ -136,7 +157,7 @@ void *metronome_thread() {
 				break;
 			case SET_PULSE: // set a new pattern
 				table_idx = table_lookup(&input_obj);
-				if(table_idx == -1){ // check if measure exists in table
+				if (table_idx == -1) { // check if measure exists in table
 					perror("\nStopped\nPlease set a valid measure.");
 					stop_timer(&itime, timer_id);
 					status = STOPPED;
@@ -177,7 +198,8 @@ void set_timer(metronome_t *input_obj) {
 	input_obj->timer.nano = floor(input_obj->timer.interval * 1e+9);
 }
 
-void start_timer(struct itimerspec *itime, timer_t timer_id, metronome_t *input_obj) {
+void start_timer(struct itimerspec *itime, timer_t timer_id,
+		metronome_t *input_obj) {
 	itime->it_value.tv_sec = 1;
 	itime->it_value.tv_nsec = 0;
 	itime->it_interval.tv_sec = input_obj->timer.interval;
@@ -197,18 +219,17 @@ int io_read(resmgr_context_t *ctp, io_read_t *msg, metocb_t *metocb) {
 	if (metocb->ocb.attr->device == METRONOME) {
 		sprintf(data,
 				"[metronome: %d beats/min, time signature: %d/%d, sec-per-interval: %.2f, nanoSecs: %.0f]\n",
-				input_obj.bpm, t[i].tstop, t[i].tsbot, input_obj.timer.interval, input_obj.timer.nano
-		);
-	} else if (metocb->ocb.attr->device == HELP){
-			sprintf(data,
-					"Metronome Resource Manager (ResMgr)\n"
-					"\nUsage: metronome <bpm> <ts-top> <ts-bottom>\n\nAPI:\n"
-					"pause[1-9]                     -pause the metronome for 1-9 seconds\n"
-					"quit                           -quit the metronome\n"
-					"set <bpm> <ts-top> <ts-bottom> -set the metronome to <bpm> ts-top/ts-bottom\n"
-					"start                          -start the metronome from stopped state\n"
-					"stop                           -stop the metronome; use 'start' to resume\n"
-			);
+				input_obj.bpm, t[i].tstop, t[i].tsbot, input_obj.timer.interval,
+				input_obj.timer.nano);
+	} else if (metocb->ocb.attr->device == HELP) {
+		sprintf(data,
+				"Metronome Resource Manager (ResMgr)\n"
+						"\nUsage: metronome <bpm> <ts-top> <ts-bottom>\n\nAPI:\n"
+						"pause[1-9]                     -pause the metronome for 1-9 seconds\n"
+						"quit                           -quit the metronome\n"
+						"set <bpm> <ts-top> <ts-bottom> -set the metronome to <bpm> ts-top/ts-bottom\n"
+						"start                          -start the metronome from stopped state\n"
+						"stop                           -stop the metronome; use 'start' to resume\n");
 	}
 	nb = strlen(data);
 
@@ -248,22 +269,23 @@ int io_write(resmgr_context_t *ctp, io_write_t *msg, metocb_t *metocb) {
 		char *buffer;
 		char *message;
 		int number = 0;
-		buffer = (char *)(msg + 1);
+		buffer = (char *) (msg + 1);
 
-		if(strstr(buffer, "start") != NULL){
+		if (strstr(buffer, "start") != NULL) {
 			MsgSendPulse(srvr_coid, SchedGet(0, 0, NULL), START_PULSE, number);
 		} else if (strstr(buffer, "stop") != NULL) {
 			MsgSendPulse(srvr_coid, SchedGet(0, 0, NULL), STOP_PULSE, number);
-		}
-		else if (strstr(buffer, "pause") != NULL) {
+		} else if (strstr(buffer, "pause") != NULL) {
 			for (int i = 0; i < 2; i++) {
 				message = strsep(&buffer, " ");
 			}
 			number = atoi(message);
+
 			if (number >= 1 && number <= 9) {
-				MsgSendPulse(srvr_coid, SchedGet(0, 0, NULL),PAUSE_PULSE, number);
+				MsgSendPulse(srvr_coid, SchedGet(0, 0, NULL), PAUSE_PULSE,
+						number);
 			} else {
-				printf("Please enter a number between 1 and 9.\n");
+				printf("\nPlease enter a number between 1 and 9.\n");
 			}
 
 		} else if (strstr(buffer, "quit") != NULL) {
@@ -282,7 +304,8 @@ int io_write(resmgr_context_t *ctp, io_write_t *msg, metocb_t *metocb) {
 
 			MsgSendPulse(srvr_coid, SchedGet(0, 0, NULL), SET_PULSE, number);
 		} else {
-			printf("\nPlease enter a valid command (cat /dev/local/metronome-help for legal commands\n");
+			printf(
+					"\nPlease enter a valid command (cat /dev/local/metronome-help for legal commands\n");
 			strcpy(data, buffer);
 		}
 
@@ -297,7 +320,8 @@ int io_write(resmgr_context_t *ctp, io_write_t *msg, metocb_t *metocb) {
 	return _RESMGR_NPARTS(0);
 }
 
-int io_open(resmgr_context_t *ctp, io_open_t *msg, RESMGR_HANDLE_T *handle,void *extra) {
+int io_open(resmgr_context_t *ctp, io_open_t *msg, RESMGR_HANDLE_T *handle,
+		void *extra) {
 	if ((srvr_coid = name_open("metronome", 0)) == -1) {
 		perror("Error opening namespace");
 		return EXIT_FAILURE;
